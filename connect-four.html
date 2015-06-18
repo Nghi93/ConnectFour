@@ -1,0 +1,437 @@
+<canvas width='1000' height='1500'></canvas>
+<script src='jquery.min.js'></script>
+<script src='jcanvas.min.js'></script>
+<script>
+HOVER = '#6666ff';
+RECT_LAYER_NAME = 'rect';
+PLAYER_COLOR = 'yellow';
+COMPUTER_COLOR = 'red';
+BOARD_COLOR = 'blue';
+SLOT_COLOR = 'white';
+
+COMPUTER_TURN = -1;
+PLAYER_TURN = 1;
+EMPTY_SLOT = 0;
+TURN = PLAYER_TURN;
+INFINITY = 9007199250740992;
+var msg = "";
+function Board(){
+	this.COLS = 7;
+	this.ROWS = 6;
+	
+	field = new Array(this.COLS);
+	for(var i = 0; i < this.COLS; i++){
+		field[i] = new Array(EMPTY_SLOT,EMPTY_SLOT,EMPTY_SLOT,EMPTY_SLOT,EMPTY_SLOT,EMPTY_SLOT);
+	}
+	this.field = field;
+}
+
+Board.prototype.findNextSlot = function(col){
+	for(var i = this.ROWS-1; i >= 0; i--){
+		if(this.field[col][i] == 0){
+			return i;
+		}
+	}
+	console.log('no next slot');
+	return null;
+}
+
+Board.prototype.drop = function(col, player){
+	res = this.findNextSlot(col);
+	if(res != null) this.field[col][res] = player;
+	return res;
+}
+
+function drop(col, player){
+	function getPlayersColor(player_){
+		if(player_ == PLAYER_TURN){
+			return PLAYER_COLOR;
+		}
+		else{
+			return COMPUTER_COLOR;
+		}
+	}
+	
+	if(player != TURN){
+		console.log('not player\'s turn');
+		return null;
+	}
+	
+	
+	res = board.drop(col, player);
+	if(res != null){
+		board.drawSlot(col, res, $('canvas').getLayer('rect'+col), getPlayersColor(player));
+		TURN=-1*TURN;					
+	}	
+	
+	if(board.checkFourConnectedOrCompleted()){
+		TURN=0;
+		alert(msg);
+		return;
+	}
+	
+	if(player != COMPUTER_TURN){
+		ai();
+	}
+	
+	return res;
+}
+
+Board.prototype.draw = function(){
+	self = this;
+	COL_WIDTH = 120;
+	HALF_COL_WIDTH = COL_WIDTH/2;
+	COL_HEIGHT = 1450;
+	function drawRect(no){
+		
+		$('canvas').drawRect({
+		  layer: true,
+		  name: RECT_LAYER_NAME+no,
+		  fillStyle: BOARD_COLOR,
+		  x: no*COL_WIDTH+HALF_COL_WIDTH, y: 0,
+		  width: COL_WIDTH, height: COL_HEIGHT,
+		  click: function(layer) {
+			drop(no, 1);
+		  },
+		  mouseover: function(layer){
+			layer.fillStyle=HOVER;
+		  },
+		  mouseout: function(layer){
+			layer.fillStyle=BOARD_COLOR;
+		  }
+		});
+	}
+
+	function drawSlots(col){
+		for(var i = 0; i < self.COLS; i++){
+			var colLayer = $('canvas').getLayer(RECT_LAYER_NAME+i);
+			for(var j = 0; j < self.ROWS; j++){
+				self.drawSlot(i, j, colLayer, SLOT_COLOR);
+			}
+		}
+	}
+	
+	for(var i = 0; i < this.COLS; i++){
+		drawRect(i);
+		drawSlots(i);
+	}
+}
+
+Board.prototype.drawSlot = function(i, j, colLayer, color){
+	$('canvas').drawArc({
+	  layer: true,
+	  fillStyle: color,
+	  x: 60+i*120, y: 60+j*120,
+	  radius: 50,
+	  click: function(layer) {
+		colLayer.click();
+	  },
+	  mouseover: function(layer){
+		colLayer.fillStyle=HOVER;
+	  },
+	  mouseout: function(layer){
+		colLayer.fillStyle=BOARD_COLOR;
+	  }
+	});
+}
+
+//check left to right
+function checkHorizontal(i, j){
+	//col 4 and higher cant have 4 connected
+	if(i > 3 || field[i][j] == 0){
+		return false; 
+	}
+	var first = field[i][j];
+	
+	for(var k = i+1; k < i+4; k++){
+		if(first != field[k][j]){
+			return false;
+		}
+	}
+	
+	return true;
+}
+
+//check top down
+		function checkVertical(i, j){
+			if(j > 2 || field[i][j] == 0){
+				return false;
+			}
+			
+			var first = field[i][j];
+			
+			for(var k = j; k <= j+3; k++){
+				if(first != field[i][k]){
+					return false;
+				}
+			}
+			
+			return true;
+		}
+
+function checkDiagonal(i, j){
+			//check top down, left to right
+			function checkDiagonalLeftToRight(i, j){
+				if(i > 3 || j > 2){
+					return false;
+				}
+				
+				var first = field[i][j];
+				for(var b = 1; b < 4; b++){
+					if(field[i+b][j+b] != first){
+						return false;
+					}
+				}
+				
+				return true;
+			}
+			
+			//check top down, left to right
+			function checkDiagonalRightToLeft(i, j){
+				if(i < 3 || j > 2){
+					return false;
+				}
+				
+				var first = field[i][j];
+				for(var b = 1; b < 4; b++){
+					if(field[i-b][j+b] != first){
+						return false;
+					}
+				}
+				
+				return true;
+			}
+			
+			if(field[i][j] == 0) return false;
+			if(checkDiagonalLeftToRight(i, j)) return true;
+			if(checkDiagonalRightToLeft(i, j)) return true;
+			
+			return false;
+		}		
+		
+Board.prototype.checkFourConnectedOrCompleted = function(){
+	function checkCompleted(){
+		for(var i = 0; i < field.length; i++){
+			for(var j = 0; j < field[i].length; j++){
+				if(field[i][j]==0){
+					return false;
+				}
+			}
+		}
+		
+		return true;
+	}
+	
+	function checkFourConnected(){
+		for(var i = 0; i < field.length; i++){
+			for(var j = 0; j < field[i].length; j++){
+				if(checkHorizontal(i, j)) return true;
+				if(checkVertical(i, j)) return true;
+				if(checkDiagonal(i, j)) return true;
+			}
+		}
+
+	}
+	
+	function checkCompleted(){
+		for(var i = 0; i < field.length; i++){
+			for(var j = 0; j < field[i].length; j++){
+				if(field[i][j] == 0){
+					return false;
+				}
+			}
+		}	
+
+		return true;
+	}
+	
+	if(checkFourConnected()){
+		msg = '4 connected';
+		return true;
+	}
+	if(checkCompleted()){
+		msg = 'draw';
+		return true;
+	}
+	
+	return false;
+}
+
+board = new Board();
+board.draw();
+
+
+
+
+function ai(){
+	DEPTH = 4;
+	
+	function undo(col, last){
+		board.field[col][last] = EMPTY_SLOT;
+	}
+	
+	function negamax(depth, player){
+
+		var best = -INFINITY;
+		var next_turn;
+		if(board.checkFourConnectedOrCompleted() || depth == 0){
+			var result = evaluate(board.field);
+			return new Array(result, 0);
+		}
+		
+		for(var i = 0; i < board.COLS; i++){
+			var res = board.drop(i, player);
+			if(res != null){
+				value = negamax(depth-1, player*-1);
+				undo(i, res);
+						
+				if(-value[0] > best){
+					best = -value[0];
+					next_turn = i;
+				}
+			}
+		}
+		
+		return [best, next_turn];
+	}
+		
+	var res = negamax(DEPTH, COMPUTER_TURN);
+	drop(res[1], COMPUTER_TURN);
+	console.log('droped in '+res[1]+' with '+res[0]);
+}
+	function evaluate(field){
+		var rating = 0;
+		
+		function rateLeftToRight(i,j,player){
+		
+			var rate = 0;
+			
+			if(i > 3) return 0;
+			
+			for(var ki = 0; ki < 4; ki++){
+				if(field[i+ki][j] == player){
+					rate += 1;
+				}
+				else if(field[i+ki][j] == EMPTY_SLOT){
+
+				}
+				else{
+					rate = 0;
+					break;
+				}
+			}
+			
+			var k = checkHorizontal(i,j);
+
+			if(k && field[i][j]==player*-1){
+				rate = -INFINITY;
+			}
+			else if(k && field[i][j]==player){
+				rate = -INFINITY;
+			}
+			
+			//console.log(''+i+j+':'+rate);
+			
+			return rate;
+		}
+		
+		function rateTopDown(i, j, player){
+			var rate = 0;
+			
+			if(j > 2) return 0;
+			
+			for(var ki = 0; ki < 4; ki++){
+				if(field[i][j+ki] == player){
+					rate += 1;
+				}
+				else if(field[i][j+ki] == EMPTY_SLOT){
+					
+				}
+				else{
+					rate = 0;
+					break;
+				}
+			}
+
+			var k = checkVertical(i,j);
+
+			if(k && field[i][j]==player*-1){
+				rate = -INFINITY;
+			}
+			else if(k && field[i][j]==player){
+				rate = -INFINITY;
+			}
+			
+			return rate;
+		}
+		
+		function rateDiagonal(i,j,player){
+			var rate = 0;
+			
+			rate += rateDiagonalRightToLeft(i,j,player);
+			rate += rateDiagonalLeftToRight(i,j,player);
+			
+			var k = checkDiagonal(i,j);
+			if(k) debugger;
+			if(k && field[i][j]==player*-1){
+				rate = -INFINITY;
+			}
+			else if(k && field[i][j]==player){
+				rate = -INFINITY;
+			}
+			
+			return rate;
+		}
+		
+		function rateDiagonalRightToLeft(i,j,player){
+			var rate = 0;
+			if(i < 3 || j > 2) return 0;
+			for(var k = 0; k < 4; k++){
+				if(field[i-k][j+k] == player){
+					rate += 1;
+				}
+				else if(field[i-k][j+k] == player*-1){
+					rate -= 1;
+				}
+				else{
+					rate = 0;
+					break;
+				}
+			}
+			
+			return rate;
+		}
+		
+		function rateDiagonalLeftToRight(i,j,player){
+			var rate = 0;
+			if(i > 3 || j > 2) return 0;
+			for(var k = 0; k < 4; k++){
+				if(field[i+k][j+k] == player){
+					rate += 1;
+				}
+				else if(field[i+k][j+k] == player*-1){
+					rate += -1;
+				}
+				else{
+					rate = 0;
+					break;
+				}
+			}
+			
+			return rate;
+		}
+		
+		for(var ai = 0; ai < field.length; ai++){
+			for(var aj = 0; aj < field[ai].length; aj++){
+				rating += rateLeftToRight(ai, aj, COMPUTER_TURN);
+				rating += rateTopDown(ai, aj, COMPUTER_TURN);
+				rating += rateDiagonal(ai, aj, COMPUTER_TURN);
+				//rating -= rateLeftToRight(ai, aj, PLAYER_TURN);
+				//rating -= rateTopDown(ai, aj, PLAYER_TURN);
+				//rating -= rateDiagonal(ai, aj, PLAYER_TURN);
+			}
+			
+		}
+		return rating;
+	}
+</script>
